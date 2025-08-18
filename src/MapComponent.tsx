@@ -32,7 +32,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const [isGettingLocation, setIsGettingLocation] = useState(false);
 
   useEffect(() => {
-
     if (map.current) return; // Inicializar mapa solo una vez
 
     if (mapContainer.current) {
@@ -78,17 +77,24 @@ const MapComponent: React.FC<MapComponentProps> = ({
                 `https://api.mapbox.com/geocoding/v5/mapbox.places/${userLng},${userLat}.json?access_token=${mapboxgl.accessToken}`
               );
               const data = await response.json();
-              const address = data.features[0]?.place_name || "Ubicación actual";
+              const address =
+                data.features[0]?.place_name || "Ubicación actual";
 
               // Establecer automáticamente como punto de origen
               if (onLocationSelect) {
                 onLocationSelect([userLng, userLat], address);
               }
             } catch (error) {
-              console.error("Error en geocodificación de ubicación actual:", error);
+              console.error(
+                "Error en geocodificación de ubicación actual:",
+                error
+              );
               // Si falla la geocodificación, usar coordenadas como fallback
               if (onLocationSelect) {
-                onLocationSelect([userLng, userLat], `${userLat.toFixed(4)}, ${userLng.toFixed(4)}`);
+                onLocationSelect(
+                  [userLng, userLat],
+                  `${userLat.toFixed(4)}, ${userLng.toFixed(4)}`
+                );
               }
             }
 
@@ -279,18 +285,18 @@ const MapComponent: React.FC<MapComponentProps> = ({
           </div>
 
           {/* Botón de confirmación */}
-          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10">
+          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10 px-4 w-full max-w-xs">
             <button
               onClick={handleConfirmLocation}
               disabled={isConfirmingLocation}
-              className={`px-6 py-3 rounded-full font-semibold text-white shadow-lg transition-all ${
+              className={`w-full px-4 py-3 rounded-full font-semibold text-white shadow-lg transition-all text-sm sm:text-base ${
                 selectionMode === "pickup"
                   ? "bg-green-600 hover:bg-green-700"
                   : "bg-red-600 hover:bg-red-700"
               } disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               {isConfirmingLocation ? (
-                <span className="flex items-center space-x-2">
+                <span className="flex items-center justify-center space-x-2">
                   <span className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white"></span>
                   <span>Confirmando...</span>
                 </span>
