@@ -156,6 +156,18 @@ function App() {
       setDestination(address);
       setDestinationCoords(coordinates);
       setSelectionMode(null);
+    } else {
+      // Si no hay modo de selección activo (ubicación automática)
+      // Establecer como origen
+      setPickup(address);
+      setPickupCoords(coordinates);
+
+      // Auto-activar selección de destino si no hay destino establecido
+      if (!destination) {
+        setTimeout(() => {
+          setSelectionMode("destination");
+        }, 1000); // Esperar 1 segundo para que el usuario vea que se estableció el origen
+      }
     }
     console.log("Ubicación seleccionada:", address, coordinates);
   };

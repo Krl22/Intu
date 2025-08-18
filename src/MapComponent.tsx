@@ -57,20 +57,40 @@ const MapComponent: React.FC<MapComponentProps> = ({
         };
 
         navigator.geolocation.getCurrentPosition(
-          (position) => {
+          async (position) => {
             const userLng = position.coords.longitude;
             const userLat = position.coords.latitude;
 
             map.current?.setCenter([userLng, userLat]);
             map.current?.setZoom(14);
 
-            // Agregar marcador de ubicación actual
+            // Agregar marcador de ubicación actual (azul)
             new mapboxgl.Marker({ color: "blue" })
               .setLngLat([userLng, userLat])
               .setPopup(
                 new mapboxgl.Popup().setHTML("<p>Tu ubicación actual</p>")
               )
               .addTo(map.current!);
+
+            // Geocodificación inversa para obtener la dirección
+            try {
+              const response = await fetch(
+                `https://api.mapbox.com/geocoding/v5/mapbox.places/${userLng},${userLat}.json?access_token=${mapboxgl.accessToken}`
+              );
+              const data = await response.json();
+              const address = data.features[0]?.place_name || "Ubicación actual";
+
+              // Establecer automáticamente como punto de origen
+              if (onLocationSelect) {
+                onLocationSelect([userLng, userLat], address);
+              }
+            } catch (error) {
+              console.error("Error en geocodificación de ubicación actual:", error);
+              // Si falla la geocodificación, usar coordenadas como fallback
+              if (onLocationSelect) {
+                onLocationSelect([userLng, userLat], `${userLat.toFixed(4)}, ${userLng.toFixed(4)}`);
+              }
+            }
 
             setIsGettingLocation(false);
           },
