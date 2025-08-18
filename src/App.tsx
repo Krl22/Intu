@@ -36,8 +36,8 @@ function App() {
 
   // Estados para la ruta
   const [routeData, setRouteData] = useState<any>(null);
-  const [routeDistance, setRouteDistance] = useState<string>("");
-  const [routeDuration, setRouteDuration] = useState<string>("");
+  // const [routeDistance, setRouteDistance] = useState<string>("");
+  // const [routeDuration, setRouteDuration] = useState<string>("");
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
 
   // Referencias para manejar clics fuera del dropdown
@@ -119,12 +119,12 @@ function App() {
         setRouteData(route);
 
         // Formatear distancia
-        const distanceKm = (route.distance / 1000).toFixed(1);
-        setRouteDistance(`${distanceKm} km`);
+        // const distanceKm = (route.distance / 1000).toFixed(1);
+        // setRouteDistance(`${distanceKm} km`);
 
-        // Formatear duración
-        const durationMinutes = Math.round(route.duration / 60);
-        setRouteDuration(`${durationMinutes} min`);
+        // // Formatear duración
+        // const durationMinutes = Math.round(route.duration / 60);
+        // setRouteDuration(`${durationMinutes} min`);
 
         console.log("Ruta calculada:", route);
       } else {
@@ -140,8 +140,8 @@ function App() {
   // Función para limpiar la ruta
   const clearRoute = () => {
     setRouteData(null);
-    setRouteDistance("");
-    setRouteDuration("");
+    // setRouteDistance("");
+    // setRouteDuration("");
   };
 
   const handleLocationSelect = (
