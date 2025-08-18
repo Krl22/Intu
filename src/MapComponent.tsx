@@ -29,8 +29,10 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const [lat] = useState(-12.1348);
   const [zoom] = useState(13);
   const [isConfirmingLocation, setIsConfirmingLocation] = useState(false);
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
 
   useEffect(() => {
+
     if (map.current) return; // Inicializar mapa solo una vez
 
     if (mapContainer.current) {
@@ -46,6 +48,14 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
       // Intentar obtener ubicación actual del usuario, pero usar Santiago de Surco como fallback
       if (navigator.geolocation) {
+        setIsGettingLocation(true);
+        // Configuración optimizada para móviles
+        const geoOptions = {
+          enableHighAccuracy: false, // Usar red/WiFi en lugar de GPS para mayor velocidad
+          timeout: 10000, // Timeout de 10 segundos
+          maximumAge: 300000, // Usar ubicación cacheada de hasta 5 minutos
+        };
+
         navigator.geolocation.getCurrentPosition(
           (position) => {
             const userLng = position.coords.longitude;
@@ -61,15 +71,18 @@ const MapComponent: React.FC<MapComponentProps> = ({
                 new mapboxgl.Popup().setHTML("<p>Tu ubicación actual</p>")
               )
               .addTo(map.current!);
+
+            setIsGettingLocation(false);
           },
           (error) => {
             console.log(
               "Error obteniendo ubicación, usando Santiago de Surco como ubicación por defecto:",
               error
             );
+            setIsGettingLocation(false);
             // En caso de error de geolocalización, mantener Santiago de Surco como centro
-            // El mapa ya está centrado en Santiago de Surco por defecto
-          }
+          },
+          geoOptions // ← Agregar las opciones aquí
         );
       } else {
         console.log(
@@ -273,7 +286,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
       {/* Indicador de estado */}
       <div className="absolute top-2 left-2 bg-white p-2 rounded shadow text-xs">
-        {selectionMode ? (
+        {isGettingLocation ? (
+          <span className="text-blue-600 font-semibold flex items-center space-x-1">
+            <span className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600"></span>
+            <span>📍 Obteniendo ubicación...</span>
+          </span>
+        ) : selectionMode ? (
           <span
             className={`font-semibold ${
               selectionMode === "pickup" ? "text-green-600" : "text-red-600"
