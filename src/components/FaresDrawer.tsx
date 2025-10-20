@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import Card from './ui/Card';
 import { Button } from './ui/button';
 
@@ -19,6 +19,10 @@ interface VehicleType {
   capacity: number;
 }
 
+const PEEK_HEIGHT = 48; // alto visible al colapsar (asa)
+const NAV_HEIGHT = 64; // altura del bottom navbar en px
+const COLLAPSE_GAP = 8; // separación para ver el asa
+
 const FaresDrawer: React.FC<FaresDrawerProps> = ({
   isOpen,
   onClose,
@@ -27,6 +31,59 @@ const FaresDrawer: React.FC<FaresDrawerProps> = ({
 }) => {
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleType | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [dragY, setDragY] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const startYRef = useRef<number | null>(null);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(true);
+    startYRef.current = e.clientY;
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {}
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging || startYRef.current === null) return;
+    e.preventDefault();
+    const delta = e.clientY - startYRef.current;
+    if (!isCollapsed) {
+      // Solo permitir arrastre hacia abajo cuando está expandido
+      setDragY(delta > 0 ? delta : 0);
+    } else {
+      // Solo permitir arrastre hacia arriba cuando está colapsado
+      setDragY(delta < 0 ? delta : 0);
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    e.preventDefault();
+    setIsDragging(false);
+    if (!isCollapsed) {
+      // Umbral para colapsar al arrastrar hacia abajo
+      if (dragY > 120) setIsCollapsed(true);
+    } else {
+      // Umbral para expandir al arrastrar hacia arriba
+      if (dragY < -80) setIsCollapsed(false);
+    }
+    try {
+      if ((e.currentTarget as any).hasPointerCapture && (e.currentTarget as any).hasPointerCapture(e.pointerId)) {
+        (e.currentTarget as any).releasePointerCapture(e.pointerId);
+      }
+    } catch {}
+    setDragY(0);
+  };
+
+  // Cálculo de transform según estado colapsado y arrastre
+  const baseTransform = isCollapsed 
+    ? `translateY(calc(100% - ${PEEK_HEIGHT}px - ${NAV_HEIGHT + COLLAPSE_GAP}px))`
+    : `translateY(0)`;
+  const dragTransform = dragY ? ` translateY(${dragY}px)` : '';
+  const transformStyle = `${baseTransform}${dragTransform}`;
+  const transitionStyle = isDragging ? 'none' : 'transform 200ms ease';
 
   const vehicleTypes: VehicleType[] = [
     {
@@ -35,7 +92,7 @@ const FaresDrawer: React.FC<FaresDrawerProps> = ({
       icon: '🚗',
       description: 'Opción económica y confiable',
       estimatedTime: '3-5 min',
-      price: 15.50,
+      price: 15.5,
       capacity: 4,
     },
     {
@@ -44,7 +101,7 @@ const FaresDrawer: React.FC<FaresDrawerProps> = ({
       icon: '🚙',
       description: 'Más espacio y comodidad',
       estimatedTime: '5-8 min',
-      price: 22.00,
+      price: 22.0,
       capacity: 4,
     },
     {
@@ -53,7 +110,7 @@ const FaresDrawer: React.FC<FaresDrawerProps> = ({
       icon: '🚘',
       description: 'Vehículos de lujo',
       estimatedTime: '8-12 min',
-      price: 35.00,
+      price: 35.0,
       capacity: 4,
     },
     {
@@ -62,7 +119,7 @@ const FaresDrawer: React.FC<FaresDrawerProps> = ({
       icon: '🚐',
       description: 'Para grupos grandes',
       estimatedTime: '10-15 min',
-      price: 28.00,
+      price: 28.0,
       capacity: 6,
     },
   ];
@@ -70,8 +127,21 @@ const FaresDrawer: React.FC<FaresDrawerProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[999] flex items-end justify-center bg-transparent pointer-events-none">
-      <div className="w-full max-w-md bg-white rounded-t-3xl shadow-2xl animate-slide-up pointer-events-auto">
+    <div className="fixed inset-0 z-40 flex items-end justify-center bg-transparent pointer-events-none">
+      <div
+        className="w-full max-w-md bg-white rounded-t-3xl shadow-2xl animate-slide-up pointer-events-auto"
+        style={{ transform: transformStyle, transition: transitionStyle, marginBottom: NAV_HEIGHT }}
+      >
+        {/* Handle para arrastrar (colapsar/expandir) */}
+        <div
+          className="flex justify-center pt-3 pb-1 cursor-grab touch-none select-none"
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+        >
+          <div className="w-12 h-1.5 bg-gray-300 rounded-full"></div>
+        </div>
+
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div>

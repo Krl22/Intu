@@ -363,13 +363,15 @@ const Home: React.FC = () => {
        {/* Drawer de tarifas */}
       <FaresDrawer
         isOpen={showFaresDrawer}
-        onClose={() => setShowFaresDrawer(false)}
+        onClose={() => {
+          setShowFaresDrawer(false);
+          setRouteCoordinates(null);
+        }}
         destinationLabel={drawerDestinationLabel}
         onConfirm={(vehicleType, estimatedPrice) => {
-          // Reutiliza el handler de confirmación existente
           handleConfirmRide(vehicleType, estimatedPrice);
-          // Opcionalmente, cierra el drawer
           setShowFaresDrawer(false);
+          setRouteCoordinates(null);
         }}
       />
 

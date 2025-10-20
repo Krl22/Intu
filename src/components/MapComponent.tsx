@@ -69,8 +69,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
     );
   };
 
-
-
   // Obtener ubicación del usuario solo si no se proporciona una
   useEffect(() => {
     if (propUserLocation) {
@@ -264,7 +262,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
         <button
           onClick={handleGetLocation}
           disabled={isLoading}
-          className="absolute right-4 bottom-22 sm:bottom-28 bg-white p-3 rounded-full shadow-lg hover:shadow-xl transition-shadow z-[1000] disabled:opacity-50"
+          className="absolute right-4 bottom-22 sm:bottom-28 bg-white p-3 rounded-full shadow-lg hover:shadow-xl transition-shadow z-30 disabled:opacity-50"
         >
           <svg
             className="w-5 h-5 text-blue-500"
