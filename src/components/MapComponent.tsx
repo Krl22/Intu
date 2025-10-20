@@ -11,6 +11,7 @@ interface MapComponentProps {
   onCenterChange?: (center: { lat: number; lng: number }) => void;
   routeCoordinates?: [number, number][] | null;
   userLocation?: [number, number] | null;
+  fitRoutePadding?: { top?: number; right?: number; bottom?: number; left?: number };
 }
 
 // Componente personalizado para marcadores
@@ -37,6 +38,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   onCenterChange,
   routeCoordinates = null,
   userLocation: propUserLocation = null,
+  fitRoutePadding,
 }) => {
   const [internalUserLocation, setInternalUserLocation] = useState<
     [number, number] | null
@@ -49,6 +51,37 @@ const MapComponent: React.FC<MapComponentProps> = ({
     zoom: 12,
   });
   const mapRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (!routeCoordinates || routeCoordinates.length < 2) return;
+    const map = mapRef.current?.getMap?.() || mapRef.current;
+    if (!map || !map.fitBounds) return;
+
+    // Calcular bounds (lat,lng -> lng,lat)
+    let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+    for (const [lat, lng] of routeCoordinates) {
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+      if (lng < minLng) minLng = lng;
+      if (lng > maxLng) maxLng = lng;
+    }
+
+    const ne: [number, number] = [maxLng, maxLat];
+    const sw: [number, number] = [minLng, minLat];
+
+    const padding = {
+      top: fitRoutePadding?.top ?? 24,
+      right: fitRoutePadding?.right ?? 24,
+      bottom: fitRoutePadding?.bottom ?? 24,
+      left: fitRoutePadding?.left ?? 24,
+    } as any;
+
+    try {
+      map.fitBounds([sw, ne], { padding, duration: 700 });
+    } catch (e) {
+      // Ignorar errores de encuadre
+    }
+  }, [routeCoordinates, fitRoutePadding]);
 
   // Usar la ubicación de la prop o la interna
   const currentUserLocation = propUserLocation || internalUserLocation;

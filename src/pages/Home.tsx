@@ -20,6 +20,16 @@ const Home: React.FC = () => {
   const [searchTimeout, setSearchTimeout] = useState<number | null>(null);
   const [showFaresDrawer, setShowFaresDrawer] = useState(false);
   const [drawerDestinationLabel, setDrawerDestinationLabel] = useState<string>('');
+  const [fitRoutePadding, setFitRoutePadding] = useState<{ top?: number; right?: number; bottom?: number; left?: number }>({ top: 24, right: 24, bottom: 0, left: 24 });
+  const [isSearchingDriver, setIsSearchingDriver] = useState(false);
+  const [searchPhaseIndex, setSearchPhaseIndex] = useState(0);
+  const [searchVehicle, setSearchVehicle] = useState<{ name: string; price: number } | null>(null);
+  const searchPhases = [
+    'Buscando conductores cercanos…',
+    'Conectando con la red Intu…',
+    'Esperando confirmación del conductor…',
+    'Buscando alternativas de ruta…',
+  ];
 
   // Verificar si es la primera visita a Home
   useEffect(() => {
@@ -48,6 +58,13 @@ const Home: React.FC = () => {
       setUserLocation([42.3601, -71.0589]);
     }
   }, []);
+
+  useEffect(() => {
+    if (!showFaresDrawer) {
+      // Cuando el drawer no está visible, mostrar la ruta a pantalla completa
+      setFitRoutePadding((p) => ({ ...p, bottom: 0 }));
+    }
+  }, [showFaresDrawer]);
 
   // Cleanup del timeout al desmontar el componente
   useEffect(() => {
@@ -161,23 +178,18 @@ const Home: React.FC = () => {
 
   const handleConfirmMapSelection = async () => {
     if (mapCenter && userLocation) {
-      // Preparar etiqueta para el drawer sin modificar el input principal ni selectedDestination
       const destinationText = `Lat: ${mapCenter.lat.toFixed(4)}, Lng: ${mapCenter.lng.toFixed(4)}`;
       setDrawerDestinationLabel(destinationText);
-
-      // Salir del modo selección de pin y cerrar búsqueda
       setIsSelectingDestination(false);
       setIsSearchFocused(false);
-
-      // Calcular la ruta para visualizarla en el mapa detrás del drawer
       await calculateRoute(userLocation, [mapCenter.lat, mapCenter.lng]);
-
-      // Abrir el drawer de tarifas
       setShowFaresDrawer(true);
     }
   };
 
-
+  const handleDrawerVisibleHeight = (height: number) => {
+    setFitRoutePadding({ top: 24, right: 24, bottom: height, left: 24 });
+  };
 
   const handleQuickAccessSelect = (destination: string) => {
     handleSelectDestination(destination);
@@ -216,6 +228,25 @@ const Home: React.FC = () => {
     { icon: '🛒', label: 'Centro Comercial', address: 'Plaza Shopping' },
   ];
 
+  // Fases de búsqueda de conductor simuladas
+  useEffect(() => {
+    if (!isSearchingDriver) return;
+    setSearchPhaseIndex(0);
+    const phasesCount = searchPhases.length;
+    const interval = setInterval(() => {
+      setSearchPhaseIndex((i) => (i + 1) % phasesCount);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [isSearchingDriver]);
+
+  const handleCancelSearch = () => {
+    setIsSearchingDriver(false);
+    setSearchVehicle(null);
+    setShowFaresDrawer(true);
+    // Al cancelar, volvemos a mostrar la ruta a pantalla completa
+    setFitRoutePadding({ top: 24, right: 24, bottom: 0, left: 24 });
+  };
+
   return (
     <div className="relative h-screen bg-gray-50">
       {/* Mapa de fondo */}
@@ -225,11 +256,12 @@ const Home: React.FC = () => {
           onCenterChange={handleMapCenterChange}
           routeCoordinates={routeCoordinates}
           userLocation={userLocation}
+          fitRoutePadding={fitRoutePadding}
         />
       </div>
       
       {/* Overlay con controles */}
-      {!showFaresDrawer && (
+      {!showFaresDrawer && !isSearchingDriver && (
         <div className="absolute top-0 left-0 right-0 z-10 safe-area-top">
         <div className="container mx-auto p-4">
           <div className={`bg-white rounded-2xl shadow-lg transition-all duration-300 ${
@@ -360,30 +392,62 @@ const Home: React.FC = () => {
 
        )}
 
-       {/* Drawer de tarifas */}
-      <FaresDrawer
-        isOpen={showFaresDrawer}
-        onClose={() => {
-          setShowFaresDrawer(false);
-          setRouteCoordinates(null);
-        }}
-        destinationLabel={drawerDestinationLabel}
-        onConfirm={(vehicleType, estimatedPrice) => {
-          handleConfirmRide(vehicleType, estimatedPrice);
-          setShowFaresDrawer(false);
-          setRouteCoordinates(null);
-        }}
-      />
+       {/* Overlay de búsqueda de conductor */}
+       {isSearchingDriver && (
+         <div className="fixed inset-0 z-40 flex items-end justify-center pointer-events-none">
+           <div className="w-full max-w-md pointer-events-auto mb-16">
+             <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-200">
+               <div className="flex items-center justify-between">
+                 <h2 className="text-lg font-semibold text-gray-800">Buscando conductor</h2>
+                 {searchVehicle && (
+                   <span className="text-sm text-gray-500">{searchVehicle.name}</span>
+                 )}
+               </div>
+               <div className="mt-4 flex items-center">
+                 <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mr-3"></div>
+                 <p className="text-sm text-gray-700">{searchPhases[searchPhaseIndex]}</p>
+               </div>
+               {searchVehicle && (
+                 <p className="mt-2 text-xs text-gray-500">Tarifa estimada: ${searchVehicle.price}</p>
+               )}
+               <Button
+                 onClick={handleCancelSearch}
+                 className="w-full mt-4 bg-gray-200 text-gray-700 hover:bg-gray-300 rounded-xl py-3"
+               >
+                 Cancelar búsqueda
+               </Button>
+             </div>
+           </div>
+         </div>
+       )}
 
-      {/* Modal de solicitud de viaje (para otros flujos) */}
-      <RideRequestModal
-        isOpen={showRideModal}
-        onClose={() => setShowRideModal(false)}
-        destination={selectedDestination || ''}
-        onConfirm={handleConfirmRide}
-      />
-    </div>
-  );
+       {/* Drawer de tarifas */}
+       <FaresDrawer
+         isOpen={showFaresDrawer}
+         onClose={() => {
+           setShowFaresDrawer(false);
+           setFitRoutePadding({ top: 24, right: 24, bottom: 0, left: 24 });
+         }}
+         destinationLabel={drawerDestinationLabel}
+         onConfirm={(vehicleType, estimatedPrice) => {
+           // Inicia simulación de búsqueda de conductor
+           setSearchVehicle({ name: vehicleType, price: estimatedPrice });
+           setShowFaresDrawer(false);
+           setIsSearchingDriver(true);
+           setFitRoutePadding({ top: 24, right: 24, bottom: 0, left: 24 });
+         }}
+         onVisibleHeightChange={handleDrawerVisibleHeight}
+       />
+
+       {/* Modal de solicitud de viaje (para otros flujos) */}
+       <RideRequestModal
+         isOpen={showRideModal}
+         onClose={() => setShowRideModal(false)}
+         destination={selectedDestination || ''}
+         onConfirm={handleConfirmRide}
+       />
+     </div>
+   );
 };
  
 export default Home;

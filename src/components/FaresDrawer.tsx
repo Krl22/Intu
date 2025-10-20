@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Card from './ui/Card';
 import { Button } from './ui/button';
 
@@ -7,6 +7,7 @@ interface FaresDrawerProps {
   onClose: () => void;
   destinationLabel?: string;
   onConfirm: (vehicleType: string, estimatedPrice: number) => void;
+  onVisibleHeightChange?: (height: number) => void;
 }
 
 interface VehicleType {
@@ -28,6 +29,7 @@ const FaresDrawer: React.FC<FaresDrawerProps> = ({
   onClose,
   destinationLabel,
   onConfirm,
+  onVisibleHeightChange,
 }) => {
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleType | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -35,6 +37,23 @@ const FaresDrawer: React.FC<FaresDrawerProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const startYRef = useRef<number | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  const reportVisibleHeight = () => {
+    if (!containerRef.current || !onVisibleHeightChange) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const visibleHeight = Math.max(0, Math.round(window.innerHeight - rect.top));
+    onVisibleHeightChange(visibleHeight);
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    // Reportar altura inicial y al cambiar colapso
+    reportVisibleHeight();
+    const onResize = () => reportVisibleHeight();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [isOpen, isCollapsed]);
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -50,10 +69,8 @@ const FaresDrawer: React.FC<FaresDrawerProps> = ({
     e.preventDefault();
     const delta = e.clientY - startYRef.current;
     if (!isCollapsed) {
-      // Solo permitir arrastre hacia abajo cuando está expandido
       setDragY(delta > 0 ? delta : 0);
     } else {
-      // Solo permitir arrastre hacia arriba cuando está colapsado
       setDragY(delta < 0 ? delta : 0);
     }
   };
@@ -63,10 +80,8 @@ const FaresDrawer: React.FC<FaresDrawerProps> = ({
     e.preventDefault();
     setIsDragging(false);
     if (!isCollapsed) {
-      // Umbral para colapsar al arrastrar hacia abajo
       if (dragY > 120) setIsCollapsed(true);
     } else {
-      // Umbral para expandir al arrastrar hacia arriba
       if (dragY < -80) setIsCollapsed(false);
     }
     try {
@@ -75,6 +90,8 @@ const FaresDrawer: React.FC<FaresDrawerProps> = ({
       }
     } catch {}
     setDragY(0);
+    // Reportar nueva altura visible después de ajustar el estado
+    setTimeout(reportVisibleHeight, 0);
   };
 
   // Cálculo de transform según estado colapsado y arrastre
@@ -129,6 +146,7 @@ const FaresDrawer: React.FC<FaresDrawerProps> = ({
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-transparent pointer-events-none">
       <div
+        ref={containerRef}
         className="w-full max-w-md bg-white rounded-t-3xl shadow-2xl animate-slide-up pointer-events-auto"
         style={{ transform: transformStyle, transition: transitionStyle, marginBottom: NAV_HEIGHT }}
       >
