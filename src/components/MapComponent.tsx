@@ -11,7 +11,13 @@ interface MapComponentProps {
   onCenterChange?: (center: { lat: number; lng: number }) => void;
   routeCoordinates?: [number, number][] | null;
   userLocation?: [number, number] | null;
-  fitRoutePadding?: { top?: number; right?: number; bottom?: number; left?: number };
+  fitRoutePadding?: {
+    top?: number;
+    right?: number;
+    bottom?: number;
+    left?: number;
+  };
+  destinationLocation?: [number, number] | null;
 }
 
 // Componente personalizado para marcadores
@@ -20,9 +26,14 @@ const CustomMarker: React.FC<{
   latitude: number;
   color?: string;
   title?: string;
-}> = ({ longitude, latitude, color = "#3B82F6", title }) => {
+  anchor?: "center" | "bottom";
+}> = ({ longitude, latitude, color = "#3B82F6", title, anchor = "center" }) => {
   return (
-    <Marker longitude={longitude} latitude={latitude}>
+    <Marker 
+      longitude={longitude} 
+      latitude={latitude}
+      anchor={anchor}
+    >
       <div
         className="w-6 h-6 rounded-full border-2 border-white shadow-lg cursor-pointer"
         style={{ backgroundColor: color }}
@@ -39,6 +50,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   routeCoordinates = null,
   userLocation: propUserLocation = null,
   fitRoutePadding,
+  destinationLocation = null,
 }) => {
   const [internalUserLocation, setInternalUserLocation] = useState<
     [number, number] | null
@@ -53,12 +65,17 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const mapRef = useRef<any>(null);
 
   useEffect(() => {
+    // Evitar re-encuadre mientras se selecciona destino
+    if (isSelectingDestination) return;
     if (!routeCoordinates || routeCoordinates.length < 2) return;
     const map = mapRef.current?.getMap?.() || mapRef.current;
     if (!map || !map.fitBounds) return;
 
     // Calcular bounds (lat,lng -> lng,lat)
-    let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+    let minLat = Infinity,
+      maxLat = -Infinity,
+      minLng = Infinity,
+      maxLng = -Infinity;
     for (const [lat, lng] of routeCoordinates) {
       if (lat < minLat) minLat = lat;
       if (lat > maxLat) maxLat = lat;
@@ -81,7 +98,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     } catch (e) {
       // Ignorar errores de encuadre
     }
-  }, [routeCoordinates, fitRoutePadding]);
+  }, [routeCoordinates, fitRoutePadding, isSelectingDestination]);
 
   // Usar la ubicación de la prop o la interna
   const currentUserLocation = propUserLocation || internalUserLocation;
@@ -196,7 +213,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
           {...viewState}
           onMove={(evt) => {
             setViewState(evt.viewState);
-            if (onCenterChange) {
+            // Reportar centro SOLO cuando se está seleccionando destino
+            if (isSelectingDestination && onCenterChange) {
               const { longitude, latitude } = evt.viewState;
               onCenterChange({ lat: latitude, lng: longitude });
             }
@@ -214,8 +232,17 @@ const MapComponent: React.FC<MapComponentProps> = ({
             />
           )}
 
-          {/* Marcador de destino */}
-          {routeCoordinates &&
+          {/* Marcador de destino (usar la coordenada exacta seleccionada si existe) */}
+          {isValidCoordinate(destinationLocation) ? (
+            <CustomMarker
+              longitude={destinationLocation[1]}
+              latitude={destinationLocation[0]}
+              color="#EF4444"
+              title="Destino seleccionado"
+              anchor="bottom"
+            />
+          ) : (
+            routeCoordinates &&
             routeCoordinates.length > 1 &&
             isValidCoordinate([
               routeCoordinates[routeCoordinates.length - 1][0],
@@ -226,8 +253,10 @@ const MapComponent: React.FC<MapComponentProps> = ({
                 latitude={routeCoordinates[routeCoordinates.length - 1][0]}
                 color="#EF4444"
                 title="Destino seleccionado"
+                anchor="bottom"
               />
-            )}
+            )
+          )}
 
           {/* Marcador por defecto */}
           {!isValidCoordinate(currentUserLocation) && (
@@ -276,16 +305,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
       {/* Pin central para selección de destino */}
       {isSelectingDestination && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[1000]">
-          <div className="relative">
-            {/* Pin principal */}
-            <div className="w-8 h-8 bg-red-500 rounded-full border-4 border-white shadow-lg transform -translate-y-4">
-              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full"></div>
+        <div className="absolute inset-0 pointer-events-none z-[1000]">
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2">
+            <div className="relative -translate-y-full">
+              <div className="w-7 h-7 bg-red-500 rounded-full border-[3px] border-white shadow-lg mx-auto" />
+              <div className="w-0 h-0 border-l-[6px] border-r-[6px] border-t-[10px] border-l-transparent border-r-transparent border-t-red-500 mx-auto -mt-0.5" />
             </div>
-            {/* Sombra del pin */}
-            <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-black opacity-20 rounded-full blur-sm"></div>
-            {/* Línea del pin */}
-            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 w-0.5 h-4 bg-red-500"></div>
           </div>
         </div>
       )}
