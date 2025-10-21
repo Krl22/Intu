@@ -24,6 +24,8 @@ const Home: React.FC = () => {
   const [routeCoordinates, setRouteCoordinates] = useState<
     [number, number][] | null
   >(null);
+const [routeDistanceMeters, setRouteDistanceMeters] = useState<number | null>(null);
+const [routeDurationSeconds, setRouteDurationSeconds] = useState<number | null>(null);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(
     null
   );
@@ -116,9 +118,21 @@ const Home: React.FC = () => {
           const lat = userLocation ? userLocation[0] : 42.3601; // Boston por defecto
           const lon = userLocation ? userLocation[1] : -71.0589; // Boston por defecto
 
-          // API de Nominatim para geocoding
+          // Usar proxy local hacia Nominatim para evitar CORS
+          const formatShortAddress = (item: any) => {
+            const a = item?.address || {};
+            const number = a.house_number || "";
+            const road = a.road || a.residential || a.street || a.neighbourhood || a.suburb || "";
+            const city = a.city || a.town || a.village || a.hamlet || a.municipality || a.county || "";
+            const street = [number, road].filter(Boolean).join(" ");
+            const label = [street, city].filter(Boolean).join(", ");
+            if (label) return label;
+            // Fallback: primeras 3 partes del display_name
+            return (item?.display_name || "").split(",").slice(0, 3).join(", ");
+          };
+
           const response = await fetch(
-            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+            `/api/nominatim/search?format=json&q=${encodeURIComponent(
               value
             )}&limit=5&addressdetails=1&viewbox=${lon - 0.1},${lat + 0.1},${
               lon + 0.1
@@ -127,21 +141,18 @@ const Home: React.FC = () => {
 
           if (response.ok) {
             const data = await response.json();
-            const newSuggestions = data.map((item: any) => {
-              const address = item.display_name;
-              return address;
-            });
+            const newSuggestions = data.map((item: any) => formatShortAddress(item));
             setSuggestions(newSuggestions);
           } else {
-            // Fallback a búsqueda sin restricciones geográficas
+            // Fallback a búsqueda sin restricciones geográficas contra el proxy
             const fallbackResponse = await fetch(
-              `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+              `/api/nominatim/search?format=json&q=${encodeURIComponent(
                 value
               )}&limit=5&addressdetails=1`
             );
             if (fallbackResponse.ok) {
               const data = await fallbackResponse.json();
-              const newSuggestions = data.map((item: any) => item.display_name);
+              const newSuggestions = data.map((item: any) => formatShortAddress(item));
               setSuggestions(newSuggestions);
             }
           }
@@ -161,14 +172,20 @@ const Home: React.FC = () => {
     }
   };
 
-  const handleSelectDestination = (destination: string) => {
+  const handleSelectDestination = async (destination: string) => {
     setSelectedDestination(destination);
     setSearchValue("");
     setSuggestions([]);
     setIsSearchFocused(false);
+    setIsSelectingDestination(false);
     // Limpiar ruta anterior cuando se selecciona de sugerencias
     setRouteCoordinates(null);
     setDestinationLocation(null);
+  setRouteDistanceMeters(null);
+  setRouteDurationSeconds(null);
+ 
+    // Geocodificar y abrir el drawer automáticamente
+    await handleConfirmSelectedDestination(destination);
   };
 
   const handleRequestRide = () => {
@@ -228,6 +245,59 @@ const Home: React.FC = () => {
     }
   };
 
+  const handleConfirmSelectedDestination = async (destinationArg?: string) => {
+    const destinationText = destinationArg ?? selectedDestination;
+    if (!destinationText || !userLocation) return;
+    setIsSelectingDestination(false);
+    setIsSearchFocused(false);
+    try {
+      const lat = userLocation[0];
+      const lon = userLocation[1];
+      // Primero intentamos con bounding alrededor del usuario
+      let response = await fetch(
+        `/api/nominatim/search?format=json&q=${encodeURIComponent(
+          destinationText
+        )}&limit=1&addressdetails=1&viewbox=${lon - 0.1},${lat + 0.1},${lon + 0.1},${lat - 0.1}&bounded=1&countrycodes=us`
+      );
+      let data: any[] = [];
+      if (response.ok) {
+        data = await response.json();
+      }
+      // Fallback: sin bounding si no se encontró
+      if (!data || data.length === 0) {
+        response = await fetch(
+          `/api/nominatim/search?format=json&q=${encodeURIComponent(
+            destinationText
+          )}&limit=1&addressdetails=1`
+        );
+        if (response.ok) {
+          data = await response.json();
+        }
+      }
+      if (data && data.length > 0) {
+        const item = data[0];
+        const destLat = parseFloat(item.lat);
+        const destLon = parseFloat(item.lon);
+        setDrawerDestinationLabel(destinationText);
+        setDestinationLocation([destLat, destLon]);
+        // Aplicar padding seguro para encajar la ruta antes de calcularla
+        setFitRoutePadding({
+          top: 24,
+          right: 24,
+          bottom: NAV_HEIGHT + MAP_BOTTOM_GAP,
+          left: 24,
+        });
+        await calculateRoute(userLocation, [destLat, destLon]);
+        setShowFaresDrawer(true);
+      } else {
+        alert("No se encontró una ubicación precisa para esa dirección.");
+      }
+    } catch (error) {
+      console.error("Error geocodificando destino:", error);
+      alert("Ocurrió un error al geocodificar la dirección. Intenta nuevamente.");
+    }
+  };
+
   const handleDrawerVisibleHeight = (height: number) => {
     setFitRoutePadding({
       top: 24,
@@ -246,6 +316,22 @@ const Home: React.FC = () => {
     start: [number, number],
     end: [number, number]
   ) => {
+    // Distancia Haversine (en metros) como fallback
+    const haversineDistance = (a: [number, number], b: [number, number]) => {
+      const toRad = (deg: number) => (deg * Math.PI) / 180;
+      const R = 6371000; // radio de la Tierra en metros
+      const dLat = toRad(b[0] - a[0]);
+      const dLon = toRad(b[1] - a[1]);
+      const lat1 = toRad(a[0]);
+      const lat2 = toRad(b[0]);
+      const h =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1) * Math.cos(lat2) *
+          Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+      return R * c;
+    };
+
     try {
       // Usando una API de routing simple (OpenRouteService alternativa gratuita)
       const response = await fetch(
@@ -255,20 +341,31 @@ const Home: React.FC = () => {
       if (response.ok) {
         const data = await response.json();
         if (data.routes && data.routes.length > 0) {
-          const coordinates = data.routes[0].geometry.coordinates.map(
+          const route = data.routes[0];
+          const coordinates = route.geometry.coordinates.map(
             (coord: [number, number]) => [coord[1], coord[0]]
           );
           setRouteCoordinates(coordinates);
+          if (typeof route.distance === "number") setRouteDistanceMeters(route.distance);
+          if (typeof route.duration === "number") setRouteDurationSeconds(route.duration);
         }
       } else {
         console.error("Error calculando ruta");
         // Fallback: línea recta
         setRouteCoordinates([start, end]);
+        const d = haversineDistance(start, end);
+        setRouteDistanceMeters(d);
+        const avgSpeedMps = 35000 / 3600; // ~35 km/h
+        setRouteDurationSeconds(d / avgSpeedMps);
       }
     } catch (error) {
       console.error("Error en la API de routing:", error);
       // Fallback: línea recta
       setRouteCoordinates([start, end]);
+      const d = haversineDistance(start, end);
+      setRouteDistanceMeters(d);
+      const avgSpeedMps = 35000 / 3600; // ~35 km/h
+      setRouteDurationSeconds(d / avgSpeedMps);
     }
   };
 
@@ -400,11 +497,8 @@ const Home: React.FC = () => {
                           </div>
                           <div className="flex-1">
                             <span className="text-gray-800 font-medium">
-                              {suggestion.split(" - ")[1]}
+                              {suggestion}
                             </span>
-                            <p className="text-xs text-gray-500">
-                              {suggestion.split(" - ")[0]}
-                            </p>
                           </div>
                         </div>
                       </Card>
@@ -434,11 +528,8 @@ const Home: React.FC = () => {
                           </div>
                           <div>
                             <span className="text-blue-800 font-semibold">
-                              {selectedDestination.split(" - ")[1]}
+                              {selectedDestination}
                             </span>
-                            <p className="text-xs text-blue-600">
-                              {selectedDestination.split(" - ")[0]}
-                            </p>
                           </div>
                         </div>
                         <button
@@ -469,23 +560,26 @@ const Home: React.FC = () => {
                   </div>
                 )}
 
+
                 <Button
-                  onClick={
-                    isSelectingDestination
-                      ? handleConfirmMapSelection
-                      : handleRequestRide
-                  }
-                  className={`w-full py-4 rounded-xl font-semibold text-lg transition-all duration-200 ${
+                  onClick={() => {
+                    if (isSelectingDestination) {
+                      handleConfirmMapSelection();
+                    } else if (selectedDestination) {
+                      handleConfirmSelectedDestination();
+                    } else {
+                      handleRequestRide();
+                    }
+                  }}
+                  className={`w-full py-4 rounded-xl font-semibold text-lg transition-all duración-200 ${
                     selectedDestination || isSelectingDestination
                       ? "bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transform hover:-translate-y-1"
                       : "bg-gray-200 text-gray-500 cursor-not-allowed"
                   }`}
                   disabled={!selectedDestination && !isSelectingDestination}
                 >
-                  {isSelectingDestination
+                  {selectedDestination || isSelectingDestination
                     ? "Confirmar ubicación"
-                    : selectedDestination
-                    ? "Solicitar Viaje"
                     : "Selecciona un destino"}
                 </Button>
               </div>
@@ -578,6 +672,8 @@ const Home: React.FC = () => {
           });
         }}
         destinationLabel={drawerDestinationLabel}
+        routeDistanceMeters={routeDistanceMeters ?? 0}
+        routeDurationSeconds={routeDurationSeconds ?? 0}
         onConfirm={(vehicleType, estimatedPrice) => {
           // Inicia simulación de búsqueda de conductor
           setSearchVehicle({ name: vehicleType, price: estimatedPrice });

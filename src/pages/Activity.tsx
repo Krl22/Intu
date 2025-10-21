@@ -1,25 +1,34 @@
 import React, { useState } from 'react';
+import { useUserTrips } from '../hooks/useFirestore';
+import type { Trip } from '../hooks/useFirestore';
 import Card from '../components/ui/Card';
 import { Button } from '../components/ui/button';
 
-interface Trip {
-  id: string;
-  date: string;
-  time: string;
-  from: string;
-  to: string;
-  vehicleType: string;
-  price: number;
-  status: 'completed' | 'cancelled' | 'in_progress';
-  driver: string;
-  rating?: number;
-  duration: string;
-}
+// Define un tipo de visualización que toma solo los campos usados en UI
+type DisplayTrip = Pick<Trip, 'id'|'date'|'time'|'from'|'to'|'vehicleType'|'price'|'status'|'driver'|'rating'|'duration'>;
 
 const Activity: React.FC = () => {
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'completed' | 'cancelled'>('all');
+  const { trips, loading, error } = useUserTrips();
 
-  const trips: Trip[] = [
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-600">Cargando actividad...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-red-600">{error}</div>
+      </div>
+    );
+  }
+
+  // Datos de ejemplo si no hay viajes en Firestore
+  const sampleTrips: DisplayTrip[] = [
     {
       id: '1',
       date: '2024-01-15',
@@ -86,21 +95,23 @@ const Activity: React.FC = () => {
     }
   ];
 
-  const filteredTrips = trips.filter(trip => {
+  const allTrips: DisplayTrip[] = trips.length > 0 ? trips : sampleTrips;
+
+  const filteredTrips = allTrips.filter(trip => {
     if (selectedFilter === 'all') return true;
     return trip.status === selectedFilter;
   });
 
-  const totalTrips = trips.length;
-  const completedTrips = trips.filter(t => t.status === 'completed').length;
-  const totalSpent = trips
+  const totalTrips = allTrips.length;
+  const completedTrips = allTrips.filter(t => t.status === 'completed').length;
+  const totalSpent = allTrips
     .filter(t => t.status === 'completed')
     .reduce((sum, trip) => sum + trip.price, 0);
-  const averageRating = trips
+  const averageRating = allTrips
     .filter(t => t.rating)
-    .reduce((sum, trip) => sum + (trip.rating || 0), 0) / trips.filter(t => t.rating).length;
+    .reduce((sum, trip) => sum + (trip.rating || 0), 0) / allTrips.filter(t => t.rating).length;
 
-  const getStatusColor = (status: Trip['status']) => {
+  const getStatusColor = (status: DisplayTrip['status']) => {
     switch (status) {
       case 'completed':
         return 'text-green-600 bg-green-100';
@@ -113,7 +124,7 @@ const Activity: React.FC = () => {
     }
   };
 
-  const getStatusText = (status: Trip['status']) => {
+  const getStatusText = (status: DisplayTrip['status']) => {
     switch (status) {
       case 'completed':
         return 'Completado';

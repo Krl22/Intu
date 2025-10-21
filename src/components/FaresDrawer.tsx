@@ -6,6 +6,9 @@ interface FaresDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   destinationLabel?: string;
+  // Métricas de la ruta para cálculo dinámico
+  routeDistanceMeters?: number;
+  routeDurationSeconds?: number;
   onConfirm: (vehicleType: string, estimatedPrice: number) => void;
   onVisibleHeightChange?: (height: number) => void;
 }
@@ -16,7 +19,7 @@ interface VehicleType {
   icon: string;
   description: string;
   estimatedTime: string;
-  price: number;
+  price: number; // precio base/fallback
   capacity: number;
 }
 
@@ -28,6 +31,8 @@ const FaresDrawer: React.FC<FaresDrawerProps> = ({
   isOpen,
   onClose,
   destinationLabel,
+  routeDistanceMeters,
+  routeDurationSeconds,
   onConfirm,
   onVisibleHeightChange,
 }) => {
@@ -112,42 +117,80 @@ const FaresDrawer: React.FC<FaresDrawerProps> = ({
   const transformStyle = `${baseTransform}${dragTransform}`;
   const transitionStyle = isDragging ? "none" : "transform 200ms ease";
 
+  // Definición de tarifas por tipo de vehículo
+  const pricing = {
+    moto_economy: { base: 3, includedKm: 2, perKm: 1.6, perMin: 0.12 },
+    moto_express: { base: 4, includedKm: 2, perKm: 2.1, perMin: 0.16 },
+    moto_cargo: { base: 5, includedKm: 2, perKm: 2.5, perMin: 0.22 },
+    moto_premium: { base: 6, includedKm: 2, perKm: 3.0, perMin: 0.28 },
+  } as const;
+
+  const hasMetrics =
+    typeof routeDistanceMeters === "number" && routeDistanceMeters > 0 &&
+    typeof routeDurationSeconds === "number" && routeDurationSeconds > 0;
+
+  const computePrice = (vehicle: VehicleType) => {
+    if (!hasMetrics) return vehicle.price;
+    const p = pricing[vehicle.id as keyof typeof pricing] || pricing.moto_economy;
+
+    const km = routeDistanceMeters! / 1000;
+    const minutes = routeDurationSeconds! / 60;
+
+    // Tramo incluido
+    const extraKm = Math.max(0, km - p.includedKm);
+    let amount = p.base + extraKm * p.perKm + minutes * p.perMin;
+
+    // Ajuste por tráfico: compara duración con la esperada a 35 km/h
+    const baselineSpeedMps = 35000 / 3600; // 35 km/h
+    const expectedSeconds = (routeDistanceMeters! / baselineSpeedMps) || 1;
+    const trafficFactor = Math.max(1, routeDurationSeconds! / expectedSeconds);
+    const trafficMultiplier = 1 + Math.min(0.5, (trafficFactor - 1) * 0.25); // hasta +50%
+    amount *= trafficMultiplier;
+
+    // Mínimo
+    const minFare = Math.max(5, p.base);
+    amount = Math.max(minFare, amount);
+
+    // Redondeo
+    return Math.round(amount * 100) / 100;
+  };
+
   const vehicleTypes: VehicleType[] = [
     {
-      id: "economy",
-      name: "IntuEconomy",
-      icon: "🚗",
-      description: "Opción económica y confiable",
+      id: "moto_economy",
+      name: "IntuMoto Eco",
+      icon: "🛺",
+      description: "Moto taxi económica y práctica",
+      estimatedTime: "2-4 min",
+      price: 6,
+      capacity: 2,
+    },
+    {
+      id: "moto_express",
+      name: "IntuMoto Express",
+      icon: "🛵",
+      description: "Llegada rápida y directa",
+      estimatedTime: "1-3 min",
+      price: 8,
+      capacity: 2,
+    },
+    {
+      id: "moto_cargo",
+      name: "IntuMoto Cargo",
+      icon: "📦",
+      description: "Entrega de paquetes pequeños",
       estimatedTime: "3-5 min",
-      price: 15.5,
-      capacity: 4,
+      price: 12,
+      capacity: 1,
     },
     {
-      id: "comfort",
-      name: "IntuComfort",
-      icon: "🚙",
-      description: "Más espacio y comodidad",
-      estimatedTime: "5-8 min",
-      price: 22.0,
-      capacity: 4,
-    },
-    {
-      id: "premium",
-      name: "IntuPremium",
-      icon: "🚘",
-      description: "Vehículos de lujo",
-      estimatedTime: "8-12 min",
-      price: 35.0,
-      capacity: 4,
-    },
-    {
-      id: "xl",
-      name: "IntuXL",
-      icon: "🚐",
-      description: "Para grupos grandes",
-      estimatedTime: "10-15 min",
-      price: 28.0,
-      capacity: 6,
+      id: "moto_premium",
+      name: "IntuMoto Premium",
+      icon: "🛺",
+      description: "Mayor comodidad y seguridad",
+      estimatedTime: "3-5 min",
+      price: 16,
+      capacity: 2,
     },
   ];
 
@@ -185,6 +228,11 @@ const FaresDrawer: React.FC<FaresDrawerProps> = ({
                 Destino: {destinationLabel}
               </p>
             )}
+            {hasMetrics && (
+              <p className="text-xs text-gray-400 mt-1">
+                Distancia aprox: {(routeDistanceMeters! / 1000).toFixed(1)} km · Tiempo: {Math.round(routeDurationSeconds! / 60)} min
+              </p>
+            )}
           </div>
           <button
             onClick={onClose}
@@ -209,45 +257,48 @@ const FaresDrawer: React.FC<FaresDrawerProps> = ({
         {/* Lista de vehículos */}
         <div className="p-6 max-h-96 overflow-y-auto">
           <div className="space-y-3">
-            {vehicleTypes.map((vehicle) => (
-              <Card
-                key={vehicle.id}
-                onClick={() => setSelectedVehicle(vehicle)}
-                className={`p-4 cursor-pointer transition-all duration-200 ${
-                  selectedVehicle?.id === vehicle.id
-                    ? "border-blue-500 bg-blue-50 shadow-md"
-                    : "border-gray-200 hover:border-gray-300 hover:shadow-sm"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center flex-1">
-                    <div className="text-3xl mr-4">{vehicle.icon}</div>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-semibold text-gray-800">
-                          {vehicle.name}
-                        </h3>
-                        <span className="text-lg font-bold text-gray-800">
-                          ${vehicle.price}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-600 mt-1">
-                        {vehicle.description}
-                      </p>
-                      <div className="flex items-center mt-2 text-xs text-gray-500">
-                        <span className="mr-4">⏱️ {vehicle.estimatedTime}</span>
-                        <span>👥 {vehicle.capacity} personas</span>
+            {vehicleTypes.map((vehicle) => {
+              const displayPrice = computePrice(vehicle);
+              return (
+                <Card
+                  key={vehicle.id}
+                  onClick={() => setSelectedVehicle(vehicle)}
+                  className={`p-4 cursor-pointer transition-all duration-200 ${
+                    selectedVehicle?.id === vehicle.id
+                      ? "border-blue-500 bg-blue-50 shadow-md"
+                      : "border-gray-200 hover:border-gray-300 hover:shadow-sm"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center flex-1">
+                      <div className="text-3xl mr-4">{vehicle.icon}</div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <h3 className="font-semibold text-gray-800">
+                            {vehicle.name}
+                          </h3>
+                          <span className="text-lg font-bold text-gray-800">
+                            S/ {displayPrice}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {vehicle.description}
+                        </p>
+                        <div className="flex items-center mt-2 text-xs text-gray-500">
+                          <span className="mr-4">⏱️ {vehicle.estimatedTime}</span>
+                          <span>👥 {vehicle.capacity} personas</span>
+                        </div>
                       </div>
                     </div>
+                    {selectedVehicle?.id === vehicle.id && (
+                      <div className="ml-4 text-blue-600 font-semibold">
+                        Seleccionado
+                      </div>
+                    )}
                   </div>
-                  {selectedVehicle?.id === vehicle.id && (
-                    <div className="ml-4 text-blue-600 font-semibold">
-                      Seleccionado
-                    </div>
-                  )}
-                </div>
-              </Card>
-            ))}
+                </Card>
+              );
+            })}
           </div>
         </div>
 
@@ -257,8 +308,9 @@ const FaresDrawer: React.FC<FaresDrawerProps> = ({
             onClick={() => {
               if (!selectedVehicle) return;
               setIsLoading(true);
+              const priceToConfirm = computePrice(selectedVehicle);
               setTimeout(() => {
-                onConfirm(selectedVehicle.name, selectedVehicle.price);
+                onConfirm(selectedVehicle.name, priceToConfirm);
                 setIsLoading(false);
                 onClose();
               }, 800);
@@ -276,7 +328,7 @@ const FaresDrawer: React.FC<FaresDrawerProps> = ({
                 Solicitando...
               </div>
             ) : selectedVehicle ? (
-              `Solicitar viaje - $${selectedVehicle.price}`
+              `Solicitar viaje - S/ ${computePrice(selectedVehicle)}`
             ) : (
               "Selecciona un vehículo"
             )}

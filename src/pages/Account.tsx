@@ -1,27 +1,44 @@
-import React, { useState } from "react";
+import React from "react";
+import { signOut } from "firebase/auth";
+import { auth } from "../lib/firebase";
+import { useUserProfile } from "../hooks/useFirestore";
 import Card from "../components/ui/Card";
 import { Button } from "../components/ui/button";
 
-interface UserProfile {
-  name: string;
-  email: string;
-  phone: string;
-  avatar: string;
-  memberSince: string;
-  rating: number;
-  totalTrips: number;
-}
-
 const Account: React.FC = () => {
-  const [user] = useState<UserProfile>({
-    name: "María González",
-    email: "maria.gonzalez@email.com",
-    phone: "+52 55 1234 5678",
-    avatar: "👩‍💼",
-    memberSince: "Enero 2023",
-    rating: 4.8,
-    totalTrips: 47,
-  });
+  const { profile, loading, error } = useUserProfile();
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-600">Cargando perfil...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-red-600">{error}</div>
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-600">No se pudo cargar el perfil</div>
+      </div>
+    );
+  }
 
   const menuItems = [
     {
@@ -113,14 +130,16 @@ const Account: React.FC = () => {
         <Card className="p-6">
           <div className="text-center space-y-4">
             {/* Avatar */}
-            <div className="text-6xl">{user.avatar}</div>
+            <div className="text-6xl">{profile.avatar}</div>
 
             {/* Información básica */}
             <div>
-              <h2 className="text-xl font-bold text-gray-800">{user.name}</h2>
-              <p className="text-gray-600">{user.email}</p>
+              <h2 className="text-xl font-bold text-gray-800">
+                {profile.name}
+              </h2>
+              <p className="text-gray-600">{profile.email}</p>
               <p className="text-sm text-gray-500">
-                Miembro desde {user.memberSince}
+                Miembro desde {profile.memberSince}
               </p>
             </div>
 
@@ -128,16 +147,16 @@ const Account: React.FC = () => {
             <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200">
               <div className="text-center">
                 <div className="text-2xl font-bold text-blue-600">
-                  {user.totalTrips}
+                  {profile.totalTrips}
                 </div>
                 <div className="text-sm text-gray-600">Viajes realizados</div>
               </div>
               <div className="text-center">
                 <div className="flex items-center justify-center space-x-1">
-                  <span className="text-2xl font-bold text-yellow-600">
-                    {user.rating}
+                  <span className="text-2xl font-bold text-yellow-500">
+                    {profile.rating}
                   </span>
-                  {renderStars(user.rating)}
+                  <div className="flex">{renderStars(profile.rating)}</div>
                 </div>
                 <div className="text-sm text-gray-600">Calificación</div>
               </div>
@@ -221,7 +240,7 @@ const Account: React.FC = () => {
             variant="outline"
             size="lg"
             className="w-full text-red-600 border-red-600 hover:bg-red-50"
-            onClick={() => alert("Función de cerrar sesión próximamente")}
+            onClick={handleSignOut}
           >
             Cerrar Sesión
           </Button>

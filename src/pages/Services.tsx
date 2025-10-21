@@ -18,68 +18,69 @@ const Services: React.FC = () => {
 
   const vehicleTypes: VehicleType[] = [
     {
-      id: 'economy',
-      name: 'IntuEconomy',
-      description: 'Opción económica y confiable',
-      price: '$45-60',
-      estimatedTime: '3-5 min',
-      capacity: 4,
-      icon: '🚗',
-      features: ['Aire acondicionado', 'Música', 'Conductor verificado']
+      id: 'moto_economy',
+      name: 'IntuMoto Eco',
+      description: 'Moto taxi económica y práctica',
+      price: 'S/ 4–7',
+      estimatedTime: '2–4 min',
+      capacity: 2,
+      icon: '🛺',
+      features: ['Conductor verificado', 'Capota cubierta', 'Trayecto corto']
     },
     {
-      id: 'comfort',
-      name: 'IntuComfort',
-      description: 'Vehículos más cómodos y espaciosos',
-      price: '$65-85',
-      estimatedTime: '4-7 min',
-      capacity: 4,
-      icon: '🚙',
-      features: ['Asientos de cuero', 'WiFi', 'Agua gratis', 'Cargador USB']
+      id: 'moto_express',
+      name: 'IntuMoto Express',
+      description: 'Llegada rápida y directa',
+      price: 'S/ 6–10',
+      estimatedTime: '1–3 min',
+      capacity: 2,
+      icon: '🛵',
+      features: ['Ruta optimizada', 'Prioridad de asignación', 'Casco disponible']
     },
     {
-      id: 'premium',
-      name: 'IntuPremium',
-      description: 'Experiencia de lujo',
-      price: '$120-150',
-      estimatedTime: '5-8 min',
-      capacity: 4,
-      icon: '🚘',
-      features: ['Vehículo de lujo', 'Conductor profesional', 'Bebidas gratis', 'Periódicos']
+      id: 'moto_cargo',
+      name: 'IntuMoto Cargo',
+      description: 'Entrega de paquetes pequeños',
+      price: 'S/ 8–15',
+      estimatedTime: '3–5 min',
+      capacity: 1,
+      icon: '📦',
+      features: ['Soporte trasero', 'Hasta 10 kg', 'Prueba de entrega']
     },
     {
-      id: 'xl',
-      name: 'IntuXL',
-      description: 'Para grupos grandes o equipaje extra',
-      price: '$80-100',
-      estimatedTime: '6-10 min',
-      capacity: 6,
-      icon: '🚐',
-      features: ['Espacio extra', 'Hasta 6 pasajeros', 'Equipaje grande', 'Aire acondicionado']
+      id: 'moto_premium',
+      name: 'IntuMoto Premium',
+      description: 'Mayor comodidad y seguridad',
+      price: 'S/ 10–18',
+      estimatedTime: '3–5 min',
+      capacity: 2,
+      icon: '🛺',
+      features: ['Asiento acolchado', 'Capota reforzada', 'Conductor con alta calificación']
     }
   ];
 
-  const additionalServices = [
+  // Opciones destacadas solicitadas
+  const specialOptions = [
     {
-      id: 'scheduled',
-      name: 'Viaje Programado',
-      description: 'Programa tu viaje con anticipación',
-      icon: '⏰',
-      price: '+$10'
+      id: 'food_delivery',
+      name: 'Delivery de comida',
+      description: 'Entrega de pedidos de restaurantes a tu ubicación',
+      icon: '🍔',
+      price: 'Desde S/ 8'
     },
     {
-      id: 'airport',
-      name: 'Servicio Aeropuerto',
-      description: 'Especializado en traslados al aeropuerto',
-      icon: '✈️',
-      price: 'Tarifa fija'
+      id: 'pet_friendly',
+      name: 'Taxi Pet-Friendly',
+      description: 'Viaja con tu mascota (transportín o medidas de seguridad requeridas)',
+      icon: '🐶',
+      price: 'Recargo +S/ 2'
     },
     {
-      id: 'delivery',
-      name: 'IntuDelivery',
-      description: 'Envío de paquetes y documentos',
+      id: 'moto_cargo_card',
+      name: 'IntuMoto Cargo',
+      description: 'Entrega de paquetes pequeños (hasta 10 kg)',
       icon: '📦',
-      price: 'Desde $25'
+      price: 'S/ 8–15'
     }
   ];
 
@@ -100,12 +101,40 @@ const Services: React.FC = () => {
         {/* Header */}
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-800 mb-2">Servicios</h1>
-          <p className="text-gray-600">Elige el tipo de vehículo que prefieras</p>
+          <p className="text-gray-600">Elige tu tipo de servicio o opción especial</p>
         </div>
 
-        {/* Tipos de vehículos */}
+        {/* Opciones destacadas */}
         <div className="space-y-3">
-          <h2 className="text-lg font-semibold text-gray-800">Tipos de Vehículo</h2>
+          <h2 className="text-lg font-semibold text-gray-800">Opciones destacadas</h2>
+          {specialOptions.map((opt) => (
+            <Card
+              key={opt.id}
+              className={`p-4 ${opt.id === 'moto_cargo_card' ? 'cursor-pointer hover:shadow-md' : ''}`}
+              onClick={() => {
+                if (opt.id === 'moto_cargo_card') {
+                  handleVehicleSelect('moto_cargo');
+                }
+              }}
+              hover
+            >
+              <div className="flex items-center space-x-4">
+                <div className="text-2xl">{opt.icon}</div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-gray-800">{opt.name}</h3>
+                  <p className="text-sm text-gray-600">{opt.description}</p>
+                </div>
+                <div className="text-sm font-semibold text-blue-600">
+                  {opt.price}
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+
+        {/* Tipos de Moto Taxi */}
+        <div className="space-y-3">
+          <h2 className="text-lg font-semibold text-gray-800">Tipos de Moto Taxi</h2>
           {vehicleTypes.map((vehicle) => (
             <Card
               key={vehicle.id}
@@ -144,25 +173,6 @@ const Services: React.FC = () => {
                       </span>
                     ))}
                   </div>
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
-
-        {/* Servicios adicionales */}
-        <div className="space-y-3">
-          <h2 className="text-lg font-semibold text-gray-800">Servicios Adicionales</h2>
-          {additionalServices.map((service) => (
-            <Card key={service.id} className="p-4" hover>
-              <div className="flex items-center space-x-4">
-                <div className="text-2xl">{service.icon}</div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-gray-800">{service.name}</h3>
-                  <p className="text-sm text-gray-600">{service.description}</p>
-                </div>
-                <div className="text-sm font-semibold text-blue-600">
-                  {service.price}
                 </div>
               </div>
             </Card>

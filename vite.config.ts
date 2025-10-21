@@ -11,4 +11,18 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  server: {
+    proxy: {
+      "/api/nominatim": {
+        target: "https://nominatim.openstreetmap.org",
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/api\/nominatim/, ""),
+        headers: {
+          "User-Agent": "IntuTaxi/1.0 (contact@intu.taxi)",
+          "Accept-Language": "es,en;q=0.8",
+          "Referer": "http://localhost:5173/",
+        },
+      },
+    },
+  },
 });
